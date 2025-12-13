@@ -12,10 +12,10 @@ from datetime import datetime
 TOKEN = os.environ.get("BOT_TOKEN", "").strip()
 
 # Метод 2 (если не умеешь устанавливать переменные окружения) — прямо в код:
-# TOKEN = "ВАШ_ТОКЕН_ОТ_BOTFATHER"
+# TOKEN = "8583693802:AAEtK9dnCkEZDfqiF1u5FIN9CTbw57WEPv4"
 
 if not TOKEN:
-    raise SystemExit("ERROR: Укажите токен: установите переменную окружения BOT_TOKEN или впишите токен в bot.py")
+    raise SystemExit("8583693802:AAEtK9dnCkEZDfqiF1u5FIN9CTbw57WEPv4")
 
 # ========== Параметры ==========
 LEADS_FILE = "leads.csv"
