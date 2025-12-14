@@ -1,24 +1,19 @@
-import os
 import telebot
 from telebot import types
 import json
 from datetime import datetime
+import os
 
 # ================== НАСТРОЙКИ ==================
 
-TOKEN = os.environ.get("8583693802:AAEtK9dnCkEZDfqiF1u5FIN9CTbw57WEPv4", "").strip()
-if not TOKEN:
-    raise SystemExit("8583693802:AAEtK9dnCkEZDfqiF1u5FIN9CTbw57WEPv4")
-
+TOKEN = "8583693802:AAEtK9dnCkEZDfqiF1u5FIN9CTbw57WEPv4"
 bot = telebot.TeleBot(TOKEN)
 
 STATE_FILE = "states.json"
 LEADS_FILE = "leads.json"
 
-# 🔹 ОБЛОЖКА БОТА (вставь свою ссылку на изображение)
-COVER_IMAGE_URL = "https://ibb.co/yn4rDJV8"><img src="https://i.ibb.co/mCN3m7SH/Screenshot-20251214-162350-cn-wps-moffice-i18n.png"
+COVER_IMAGE_URL = "https://i.ibb.co/xSFNyQ3M/Screenshot-20251214-162350-cn-wps-moffice-i18n.png"
 
-# 🔹 ПОДАРКИ
 UNIT_ECONOMICS_LINK = "https://docs.google.com/spreadsheets/d/12zTHFASwrNlK8oUGVlODbrw7pmT7cg9RcobbTou9VQ8/edit?usp=sharing"
 FIN_REPORT_LINK = "https://docs.google.com/spreadsheets/d/14AL1CU-qr6dj6_RdYnP9y8WUaCiB1mgNg8KKnfk8Nxo/edit?usp=sharing"
 
@@ -54,9 +49,9 @@ leads = load_json(LEADS_FILE)
 
 @bot.message_handler(commands=["start"])
 def start(message):
-    chat_id = message.chat.id
+    chat_id = str(message.chat.id)
 
-    states[str(chat_id)] = {
+    states[chat_id] = {
         "step": STEP_ARTICLES,
         "data": {},
         "started_at": datetime.now().isoformat()
@@ -74,7 +69,7 @@ def start(message):
     markup.add("🚀 СТАРТ")
 
     bot.send_photo(
-        chat_id,
+        message.chat.id,
         COVER_IMAGE_URL,
         caption=caption,
         parse_mode="Markdown",
@@ -106,7 +101,7 @@ def welcome(message):
 
     ask_articles(message.chat.id)
 
-# ================== ВОПРОС 1 ==================
+# ================== ВОПРОСЫ ==================
 
 def ask_articles(chat_id):
     text = "📦 **Сколько у вас артикулов на Wildberries?**"
@@ -117,8 +112,6 @@ def ask_articles(chat_id):
     markup.add("✍️ Свой вариант")
 
     bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=markup)
-
-# ================== ВОПРОС 2 ==================
 
 def ask_turnover(chat_id):
     text = "💰 **Средний оборот в месяц за последние 6 месяцев**"
@@ -131,9 +124,9 @@ def ask_turnover(chat_id):
 
     bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=markup)
 
-# ================== ОБРАБОТКА ШАГОВ ==================
+# ================== ЛОГИКА ШАГОВ ==================
 
-@bot.message_handler(func=lambda m: str(m.chat.id) in states)
+@bot.message_handler(func=lambda m: str(m.chat.id) in states and m.content_type == "text")
 def handle_steps(message):
     chat_id = str(message.chat.id)
     state = states[chat_id]
@@ -168,23 +161,59 @@ def handle_steps(message):
         )
 
     elif step == STEP_ARTICLE_WB:
-    state["data"]["wb_article"] = text
-    state["step"] = STEP_PHONE
+        state["data"]["wb_article"] = text
+        state["step"] = STEP_PHONE
+        save_json(STATE_FILE, states)
+
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add(
+            types.KeyboardButton(
+                "📲 Поделиться номером",
+                request_contact=True
+            )
+        )
+
+        bot.send_message(
+            message.chat.id,
+            "📞 **Оставьте номер телефона для связи**",
+            parse_mode="Markdown",
+            reply_markup=markup
+        )
+
+# ================== ПОЛУЧЕНИЕ КОНТАКТА ==================
+
+@bot.message_handler(content_types=["contact"])
+def handle_contact(message):
+    chat_id = str(message.chat.id)
+    if chat_id not in states:
+        return
+
+    state = states.pop(chat_id)
+    data = state["data"]
+
+    data["phone"] = message.contact.phone_number
+    data["telegram"] = f"@{message.from_user.username}" if message.from_user.username else "не указан"
+    data["date"] = datetime.now().isoformat()
+
+    leads[chat_id] = data
+    save_json(LEADS_FILE, leads)
     save_json(STATE_FILE, states)
 
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add(
-        types.KeyboardButton(
-            "📲 Поделиться номером",
-            request_contact=True
-        )
+    text = (
+        "✅ **Спасибо за ответы!**\n\n"
+        "Мы уже анализируем вашу ситуацию и подбираем\n"
+        "**лучшие условия для сотрудничества** 💼\n\n"
+        "🎁 **Ваши подарки:**\n"
+        f"👉 <a href='{UNIT_ECONOMICS_LINK}'>Калькулятор юнит-экономики</a>\n"
+        f"👉 <a href='{FIN_REPORT_LINK}'>Финансовый отчёт для WB</a>\n\n"
+        "Мы скоро свяжемся с вами 📲"
     )
 
     bot.send_message(
         message.chat.id,
-        "📞 **Оставьте номер телефона для связи**",
-        parse_mode="Markdown",
-        reply_markup=markup
+        text,
+        parse_mode="HTML",
+        reply_markup=types.ReplyKeyboardRemove()
     )
 
 # ================== ЗАПУСК ==================
