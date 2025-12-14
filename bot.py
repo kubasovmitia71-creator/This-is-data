@@ -12,8 +12,6 @@ bot = telebot.TeleBot(TOKEN)
 STATE_FILE = "states.json"
 LEADS_FILE = "leads.json"
 
-COVER_IMAGE_URL = "https://i.ibb.co/xSFNyQ3M/Screenshot-20251214-162350-cn-wps-moffice-i18n.png"
-
 UNIT_ECONOMICS_LINK = "https://docs.google.com/spreadsheets/d/12zTHFASwrNlK8oUGVlODbrw7pmT7cg9RcobbTou9VQ8/edit?usp=sharing"
 FIN_REPORT_LINK = "https://docs.google.com/spreadsheets/d/14AL1CU-qr6dj6_RdYnP9y8WUaCiB1mgNg8KKnfk8Nxo/edit?usp=sharing"
 
@@ -58,30 +56,9 @@ def start(message):
     }
     save_json(STATE_FILE, states)
 
-    caption = (
-        "👋 **Добро пожаловать!**\n\n"
-        "Нажмите кнопку **СТАРТ**, чтобы получить полезные материалы\n"
-        "и персональное предложение под ваш бизнес."
-    )
-
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add("🚀 СТАРТ")
-
-    bot.send_photo(
-        message.chat.id,
-        COVER_IMAGE_URL,
-        caption=caption,
-        parse_mode="Markdown",
-        reply_markup=markup
-    )
-
-# ================== КНОПКА СТАРТ ==================
-
-@bot.message_handler(func=lambda m: m.text == "🚀 СТАРТ")
-def welcome(message):
-    text = (
+    welcome_text = (
         "👋 **Приветствуем в боте This is data!**\n\n"
-        "Я задам вам несколько коротких вопросов, чтобы:\n"
+        "Здесь я задам вам несколько коротких вопросов, чтобы:\n"
         "✅ рассчитать нагрузку на менеджеров\n"
         "✅ сделать для вас **лучшее предложение**\n\n"
         "📈 **Сейчас This is data — это:**\n"
@@ -93,14 +70,13 @@ def welcome(message):
 
     bot.send_message(
         message.chat.id,
-        text,
-        parse_mode="Markdown",
-        reply_markup=types.ReplyKeyboardRemove()
+        welcome_text,
+        parse_mode="Markdown"
     )
 
     ask_articles(message.chat.id)
 
-# ================== ВОПРОС 1 ==================
+# ================== ВОПРОСЫ ==================
 
 def ask_articles(chat_id):
     text = "📦 **Сколько у вас артикулов на Wildberries?**"
@@ -111,8 +87,6 @@ def ask_articles(chat_id):
     markup.add("✍️ Свой вариант")
 
     bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=markup)
-
-# ================== ВОПРОС 2 ==================
 
 def ask_turnover(chat_id):
     text = "💰 **Средний оборот в месяц за последние 6 месяцев**"
@@ -157,7 +131,7 @@ def handle_steps(message):
         save_json(STATE_FILE, states)
         bot.send_message(
             message.chat.id,
-            "🏷 **Напишите любой артикул на WB**",
+            "🏷 **Напишите любой из ваших артикулов на WB**",
             parse_mode="Markdown"
         )
 
@@ -176,7 +150,7 @@ def handle_steps(message):
 
         bot.send_message(
             message.chat.id,
-            "📞 **Оставьте номер телефона для связи**",
+            "📞 **Поделитесь контактом для связи**",
             parse_mode="Markdown",
             reply_markup=markup
         )
@@ -193,11 +167,7 @@ def handle_contact(message):
     data = state["data"]
 
     data["phone"] = message.contact.phone_number
-    data["telegram"] = (
-        f"@{message.from_user.username}"
-        if message.from_user.username
-        else "не указан"
-    )
+    data["telegram"] = f"@{message.from_user.username}" if message.from_user.username else "не указан"
     data["date"] = datetime.now().isoformat()
 
     leads[chat_id] = data
@@ -205,13 +175,13 @@ def handle_contact(message):
     save_json(STATE_FILE, states)
 
     text = (
-        "✅ **Спасибо за ответы!**\n\n"
-        "Мы уже анализируем вашу ситуацию и подбираем\n"
-        "**лучшие условия для сотрудничества** 💼\n\n"
-        "🎁 **Ваши подарки:**\n"
+        "✅ Спасибо за ответы!\n\n"
+        "🔗 Анализируем данные \n"
+        "🗃️ Собираем лучшее предложение** \n\n"
+        "🎁 Забирайте инструменты по ссылке:**\n"
         f"👉 <a href='{UNIT_ECONOMICS_LINK}'>Калькулятор юнит-экономики</a>\n"
         f"👉 <a href='{FIN_REPORT_LINK}'>Финансовый отчёт для WB</a>\n\n"
-        "Мы скоро свяжемся с вами 📲"
+        "МЖдите звонка, на связи! 📲"
     )
 
     bot.send_message(
