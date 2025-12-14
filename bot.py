@@ -1,207 +1,195 @@
-# bot.py
 import os
 import telebot
 from telebot import types
-import re
-import csv
 import json
 from datetime import datetime
 
-# ====== Настройка токена ======
-# Метод 1 (рекомендуется): передать переменную окружения BOT_TOKEN в настройках Bothost
-TOKEN = os.environ.get("BOT_TOKEN", "").strip()
-
-# Метод 2 (если не умеешь устанавливать переменные окружения) — прямо в код:
-# TOKEN = "8583693802:AAEtK9dnCkEZDfqiF1u5FIN9CTbw57WEPv4"
+# ================== НАСТРОЙКИ ==================
 
 TOKEN = "8583693802:AAEtK9dnCkEZDfqiF1u5FIN9CTbw57WEPv4"
 
-# ========== Параметры ==========
-LEADS_FILE = "leads.csv"
-STATE_FILE = "states.json"
-OWNER_CHAT_ID = os.environ.get("OWNER_CHAT_ID")  # можно оставить пустым или задать как строку числа
-# ===============================
-
 bot = telebot.TeleBot(TOKEN)
-EMAIL_RE = re.compile(r"^[^@ \t\r\n]+@[^@ \t\r\n]+\.[^@ \t\r\n]+$")
-PHONE_RE = re.compile(r"^[\d\+\-\s\(\)]{6,20}$")
 
-# загрузка состояний (чтобы не терять прогресс)
-if os.path.exists(STATE_FILE):
-    try:
-        with open(STATE_FILE, "r", encoding="utf-8") as f:
-            STATES = json.load(f)
-    except Exception:
-        STATES = {}
-else:
-    STATES = {}
+STATE_FILE = "states.json"
+LEADS_FILE = "leads.json"
 
-def save_states():
-    try:
-        with open(STATE_FILE, "w", encoding="utf-8") as f:
-            json.dump(STATES, f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        print("Ошибка при сохранении states:", e)
+# 👉 ВСТАВЬ СЮДА СВОИ ССЫЛКИ
+UNIT_ECONOMICS_LINK = "https://docs.google.com/spreadsheets/d/12zTHFASwrNlK8oUGVlODbrw7pmT7cg9RcobbTou9VQ8/edit?usp=sharing"
+FIN_REPORT_LINK = "https://docs.google.com/spreadsheets/d/14AL1CU-qr6dj6_RdYnP9y8WUaCiB1mgNg8KKnfk8Nxo/edit?usp=sharing"
 
-def append_lead(record: dict):
-    file_exists = os.path.exists(LEADS_FILE)
-    with open(LEADS_FILE, "a", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=[
-            "timestamp", "user_id", "username", "name", "email", "phone", "message"
-        ])
-        if not file_exists:
-            writer.writeheader()
-        writer.writerow(record)
+# ================== СОСТОЯНИЯ ==================
 
-def make_main_keyboard():
-    kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.row(types.KeyboardButton("Пройти бриф"))
-    kb.row(types.KeyboardButton("Отмена"))
-    return kb
+(
+    STEP_ARTICLES,
+    STEP_TURNOVER,
+    STEP_NICHE,
+    STEP_ARTICLE_WB,
+    STEP_PHONE
+) = range(5)
 
-@bot.message_handler(commands=['start'])
-def cmd_start(m: types.Message):
+# ================== ХРАНЕНИЕ ==================
+
+def load_json(path):
+    if os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
+def save_json(path, data):
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+states = load_json(STATE_FILE)
+leads = load_json(LEADS_FILE)
+
+# ================== /START ==================
+
+@bot.message_handler(commands=["start"])
+def start(message):
+    chat_id = message.chat.id
+
+    states[str(chat_id)] = {
+        "step": STEP_ARTICLES,
+        "data": {},
+        "started_at": datetime.now().isoformat()
+    }
+    save_json(STATE_FILE, states)
+
     text = (
-        "Привет! 👋\n"
-        "Я бот для короткого брифа — оставьте контакты и кратко опишите задачу.\n\n"
-        "Нажмите «Пройти бриф» чтобы начать."
+        "🎁 **Подарок уже ждёт вас!**\n\n"
+        "Я задам несколько коротких вопросов,\n"
+        "чтобы:\n"
+        "✅ мы могли расчитать нагрузку на наших менеджеров \n"
+        "✅ подобрать для вас лучшее предложение\n\n"
+        "⏱ Это займёт не больше 1 минуты"
     )
-    bot.send_message(m.chat.id, text, reply_markup=make_main_keyboard())
 
-@bot.message_handler(commands=['help'])
-def cmd_help(m: types.Message):
-    bot.send_message(m.chat.id, "/start — начать\n/help — помощь\n/myid — показать ваш chat id (полезно владельцу)")
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add("🚀 Начать")
 
-@bot.message_handler(commands=['myid'])
-def cmd_myid(m: types.Message):
-    bot.send_message(m.chat.id, f"Твой chat id: {m.chat.id}")
+    bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=markup)
 
-@bot.message_handler(func=lambda message: True, content_types=['text'])
-def handle_text(m: types.Message):
-    user_id = str(m.chat.id)
-    txt = m.text.strip()
+# ================== СТАРТ КНОПКОЙ ==================
 
-    if txt.lower() == "отмена":
-        if user_id in STATES:
-            STATES.pop(user_id, None)
-            save_states()
-        bot.send_message(m.chat.id, "Отмена. Нажмите «Пройти бриф», чтобы начать снова.", reply_markup=make_main_keyboard())
-        return
+@bot.message_handler(func=lambda m: m.text == "🚀 Начать")
+def begin_questions(message):
+    ask_articles(message.chat.id)
 
-    if txt == "Пройти бриф":
-        STATES[user_id] = {"step": "ask_name", "data": {}}
-        save_states()
-        bot.send_message(m.chat.id, "Как вас зовут?", reply_markup=types.ReplyKeyboardRemove())
-        return
+# ================== ВОПРОС 1 ==================
 
-    state = STATES.get(user_id)
-    if not state:
-        bot.send_message(m.chat.id, "Нажмите «Пройти бриф», чтобы начать.", reply_markup=make_main_keyboard())
-        return
+def ask_articles(chat_id):
+    text = "📦 **Сколько у вас артикулов на Wildberries?**"
 
-    step = state.get("step")
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add("До 30", "31–60")
+    markup.add("61–100", "Больше 100")
+    markup.add("✍️ Свой вариант")
 
-    if step == "ask_name":
-        state["data"]["name"] = txt
-        state["step"] = "ask_email"
-        save_states()
-        bot.send_message(m.chat.id, "Укажите email или напишите «нет»:")
-        return
+    bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=markup)
 
-    if step == "ask_email":
-        if txt.lower() == "нет":
-            state["data"]["email"] = ""
-            state["step"] = "ask_phone"
-            save_states()
-            bot.send_message(m.chat.id, "Укажите телефон (например +7916...):")
-            return
-        if not EMAIL_RE.match(txt):
-            bot.send_message(m.chat.id, "Похоже на неверный email. Попробуйте снова или напишите «нет».")
-            return
-        state["data"]["email"] = txt
-        state["step"] = "ask_phone"
-        save_states()
-        bot.send_message(m.chat.id, "Спасибо. Теперь укажите телефон (или напишите «нет»):")
-        return
+# ================== ВОПРОС 2 ==================
 
-    if step == "ask_phone":
-        if txt.lower() == "нет":
-            state["data"]["phone"] = ""
-            state["step"] = "ask_message"
-            save_states()
-            bot.send_message(m.chat.id, "Кратко опишите задачу (1-2 предложения):")
-            return
-        if not PHONE_RE.match(txt):
-            bot.send_message(m.chat.id, "Неверный формат телефона. Повторите или напишите «нет».")
-            return
-        state["data"]["phone"] = txt
-        state["step"] = "ask_message"
-        save_states()
-        bot.send_message(m.chat.id, "Кратко опишите задачу (1-2 предложения):")
-        return
+def ask_turnover(chat_id):
+    text = "💰 **Средний оборот в месяц за последние 6 месяцев**"
 
-    if step == "ask_message":
-        state["data"]["message"] = txt
-        d = state["data"]
-        summary = (
-            "Проверьте данные:\n\n"
-            f"Имя: {d.get('name','')}\n"
-            f"Email: {d.get('email','(не указан)')}\n"
-            f"Телефон: {d.get('phone','(не указан)')}\n"
-            f"Задача: {d.get('message','')}\n\n"
-            "Если всё верно — напишите «Да». Чтобы отменить — «Отмена»."
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add("До 500 000 ₽")
+    markup.add("500 000 – 1 500 000 ₽")
+    markup.add("1 500 000 – 3 000 000 ₽")
+    markup.add("Более 3 000 000 ₽")
+
+    bot.send_message(chat_id, text, parse_mode="Markdown", reply_markup=markup)
+
+# ================== ОБРАБОТКА ==================
+
+@bot.message_handler(func=lambda m: str(m.chat.id) in states)
+def handle_steps(message):
+    chat_id = str(message.chat.id)
+    state = states[chat_id]
+    step = state["step"]
+    text = message.text
+
+    if step == STEP_ARTICLES:
+        state["data"]["articles"] = text
+        state["step"] = STEP_TURNOVER
+        save_json(STATE_FILE, states)
+        ask_turnover(message.chat.id)
+
+    elif step == STEP_TURNOVER:
+        state["data"]["turnover"] = text
+        state["step"] = STEP_NICHE
+        save_json(STATE_FILE, states)
+        bot.send_message(message.chat.id,
+            "🧩 **В какой нише вы работаете?**\n_(одежда, обувь, товары для дома и т.д.)_",
+            parse_mode="Markdown",
+            reply_markup=types.ReplyKeyboardRemove()
         )
-        state["step"] = "confirm"
-        save_states()
-        bot.send_message(m.chat.id, summary)
+
+    elif step == STEP_NICHE:
+        state["data"]["niche"] = text
+        state["step"] = STEP_ARTICLE_WB
+        save_json(STATE_FILE, states)
+        bot.send_message(
+            message.chat.id,
+            "🏷 **Напишите любой из ваших артикулов на WB**\n_(достаточно одного)_",
+            parse_mode="Markdown"
+        )
+
+    elif step == STEP_ARTICLE_WB:
+        state["data"]["wb_article"] = text
+        state["step"] = STEP_PHONE
+        save_json(STATE_FILE, states)
+
+        markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add(types.KeyboardButton("📲 Поделиться номером", request_contact=True))
+
+        bot.send_message(
+            message.chat.id,
+            "📞 **Оставьте номер телефона для связи**",
+            parse_mode="Markdown",
+            reply_markup=markup
+        )
+
+# ================== КОНТАКТ ==================
+
+@bot.message_handler(content_types=["contact"])
+def handle_contact(message):
+    chat_id = str(message.chat.id)
+
+    if chat_id not in states:
         return
 
-    if step == "confirm":
-        if txt.lower() in ("да", "ok", "подтвердить"):
-            d = state["data"]
-            record = {
-                "timestamp": datetime.utcnow().isoformat(),
-                "user_id": m.chat.id,
-                "username": (m.from_user.username or ""),
-                "name": d.get("name",""),
-                "email": d.get("email",""),
-                "phone": d.get("phone",""),
-                "message": d.get("message","")
-            }
-            try:
-                append_lead(record)
-            except Exception as e:
-                bot.send_message(m.chat.id, "Ошибка при сохранении лида. Попробуйте позже.")
-                print("Ошибка сохранения:", e)
-                STATES.pop(user_id, None)
-                save_states()
-                return
+    state = states.pop(chat_id)
+    data = state["data"]
 
-            # уведомление владельца (если задан OWNER_CHAT_ID)
-            try:
-                if OWNER_CHAT_ID:
-                    owner_id = int(OWNER_CHAT_ID)
-                    owner_msg = (
-                        "Новый лид:\n\n"
-                        f"Имя: {record['name']}\n"
-                        f"Email: {record['email'] or '(не указан)'}\n"
-                        f"Телефон: {record['phone'] or '(не указан)'}\n"
-                        f"Задача: {record['message']}\n"
-                        f"Пользователь: @{record['username']} (id {record['user_id']})\n"
-                        f"Время UTC: {record['timestamp']}"
-                    )
-                    bot.send_message(owner_id, owner_msg)
-            except Exception as e:
-                print("Не удалось отправить лид владельцу:", e)
+    data["phone"] = message.contact.phone_number
+    data["telegram"] = f"@{message.from_user.username}" if message.from_user.username else "не указан"
+    data["date"] = datetime.now().isoformat()
 
-            bot.send_message(m.chat.id, "Спасибо! Ваш бриф сохранён. Мы свяжемся с вами.", reply_markup=make_main_keyboard())
-            STATES.pop(user_id, None)
-            save_states()
-            return
-        else:
-            bot.send_message(m.chat.id, "Если всё верно — напишите «Да». Или «Отмена» для отмены.")
-            return
+    leads[chat_id] = data
+    save_json(LEADS_FILE, leads)
+    save_json(STATE_FILE, states)
 
-if __name__ == "__main__":
-    print("Бот запущен.")
-    bot.infinity_polling(timeout=60, long_polling_timeout=60)
+    text = (
+        "✅ **Спасибо!**\n\n"
+        "Анализируем данные,\n"
+        "**готовим предложение** 💼\n\n"
+        "🎁 Забираейте бесплатные инструменты:\n"
+        f"👉 <a href='{UNIT_ECONOMICS_LINK}'>Калькулятор юнит-экономики</a>\n"
+        f"👉 <a href='{FIN_REPORT_LINK}'>Финансовый отчёт для WB</a>\n\n"
+        "Мы скоро свяжемся с вами 📲"
+    )
+
+    bot.send_message(
+        message.chat.id,
+        text,
+        parse_mode="HTML",
+        reply_markup=types.ReplyKeyboardRemove()
+    )
+
+# ================== ЗАПУСК ==================
+
+bot.infinity_polling(skip_pending=True)
