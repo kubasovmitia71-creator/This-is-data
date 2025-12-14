@@ -187,3 +187,6 @@ def handle_steps(message):
         reply_markup=markup
     )
 
+# ================== ЗАПУСК ==================
+
+bot.infinity_polling(skip_pending=True)
