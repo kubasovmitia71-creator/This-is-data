@@ -168,4 +168,22 @@ def handle_steps(message):
         )
 
     elif step == STEP_ARTICLE_WB:
-        state["data"]["wb_a_]()
+    state["data"]["wb_article"] = text
+    state["step"] = STEP_PHONE
+    save_json(STATE_FILE, states)
+
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    markup.add(
+        types.KeyboardButton(
+            "📲 Поделиться номером",
+            request_contact=True
+        )
+    )
+
+    bot.send_message(
+        message.chat.id,
+        "📞 **Оставьте номер телефона для связи**",
+        parse_mode="Markdown",
+        reply_markup=markup
+    )
+
