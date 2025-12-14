@@ -6,7 +6,9 @@ from datetime import datetime
 
 # ================== НАСТРОЙКИ ==================
 
-TOKEN = "8583693802:AAEtK9dnCkEZDfqiF1u5FIN9CTbw57WEPv4"
+TOKEN = os.environ.get("8583693802:AAEtK9dnCkEZDfqiF1u5FIN9CTbw57WEPv4", "").strip()
+if not TOKEN:
+    raise SystemExit("8583693802:AAEtK9dnCkEZDfqiF1u5FIN9CTbw57WEPv4")
 
 bot = telebot.TeleBot(TOKEN)
 
